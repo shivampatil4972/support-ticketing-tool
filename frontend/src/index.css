@@ -1,0 +1,364 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==============================
+   Design System — Base Layer
+   ============================== */
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #050A18;
+    color: #F1F5F9;
+    overflow-x: hidden;
+  }
+
+  :root.dark body {
+    background: #050A18;
+    color: #F1F5F9;
+  }
+
+  :root:not(.dark) body {
+    background: #F8FAFC;
+    color: #0F172A;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(6, 182, 212, 0.3);
+    color: #fff;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.3);
+    border-radius: 100px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.5);
+  }
+}
+
+/* ==============================
+   Component Layer
+   ============================== */
+
+@layer components {
+
+  /* Glass Morphism Cards */
+  .glass-card {
+    @apply rounded-2xl border backdrop-blur-xl transition-all duration-300;
+    background: rgba(15, 26, 46, 0.6);
+    border-color: rgba(30, 48, 84, 0.5);
+  }
+
+  .glass-card:hover {
+    border-color: rgba(42, 64, 112, 0.7);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  }
+
+  :root:not(.dark) .glass-card {
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(226, 232, 240, 0.8);
+  }
+
+  /* Premium Input */
+  .input-premium {
+    @apply w-full rounded-xl border bg-transparent px-4 py-3 text-sm transition-all duration-200 outline-none;
+    border-color: rgba(30, 48, 84, 0.6);
+    background: rgba(5, 10, 24, 0.4);
+  }
+
+  .input-premium:focus {
+    border-color: #06b6d4;
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1), 0 0 20px rgba(6, 182, 212, 0.05);
+  }
+
+  .input-premium::placeholder {
+    color: #64748B;
+  }
+
+  :root:not(.dark) .input-premium {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: #CBD5E1;
+    color: #0F172A;
+  }
+  
+  :root:not(.dark) .input-premium:focus {
+    background: #FFFFFF;
+  }
+
+  /* Premium Button */
+  .btn-primary {
+    @apply relative overflow-hidden rounded-xl px-6 py-3 text-sm font-semibold text-white transition-all duration-300;
+    background: linear-gradient(135deg, #06b6d4, #0891b2);
+    box-shadow: 0 4px 15px rgba(6, 182, 212, 0.25);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 25px rgba(6, 182, 212, 0.35);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-primary::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+    pointer-events: none;
+  }
+
+  .btn-danger {
+    @apply relative overflow-hidden rounded-xl px-6 py-3 text-sm font-semibold text-white transition-all duration-300;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.25);
+  }
+
+  .btn-danger:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 25px rgba(239, 68, 68, 0.35);
+  }
+
+  .btn-secondary {
+    @apply rounded-xl border px-6 py-3 text-sm font-semibold transition-all duration-300;
+    border-color: rgba(30, 48, 84, 0.6);
+    color: #94A3B8;
+  }
+
+  .btn-secondary:hover {
+    border-color: rgba(6, 182, 212, 0.5);
+    color: #06b6d4;
+    background: rgba(6, 182, 212, 0.05);
+  }
+
+  /* Sidebar */
+  .sidebar-link {
+    @apply flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200;
+    color: #94A3B8;
+  }
+
+  .sidebar-link:hover {
+    background: rgba(6, 182, 212, 0.08);
+    color: #F1F5F9;
+  }
+
+  .sidebar-link.active {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(139, 92, 246, 0.08));
+    color: #06b6d4;
+    box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.15);
+  }
+
+  :root:not(.dark) .sidebar-link {
+    color: #64748B;
+  }
+
+  :root:not(.dark) .sidebar-link:hover {
+    color: #0F172A;
+    background: rgba(6, 182, 212, 0.08);
+  }
+
+  :root:not(.dark) .sidebar-link.active {
+    color: #0891b2;
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(139, 92, 246, 0.05));
+    box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.2);
+  }
+
+  /* Stat Card Gradient */
+  .stat-card {
+    @apply relative overflow-hidden rounded-2xl p-5 text-white transition-all duration-300;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  }
+
+  .stat-card::before {
+    content: "";
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Table */
+  .table-premium {
+    @apply w-full text-sm;
+  }
+
+  .table-premium thead {
+    @apply text-left text-xs font-semibold uppercase tracking-wider;
+    color: #64748B;
+  }
+
+  .table-premium thead th {
+    @apply px-5 py-4;
+    background: rgba(15, 26, 46, 0.4);
+  }
+
+  .table-premium tbody tr {
+    @apply transition-all duration-200;
+    border-bottom: 1px solid rgba(30, 48, 84, 0.3);
+  }
+
+  .table-premium tbody tr:hover {
+    background: rgba(6, 182, 212, 0.03);
+  }
+
+  .table-premium tbody td {
+    @apply px-5 py-4;
+  }
+
+  :root:not(.dark) .table-premium thead th {
+    background: rgba(241, 245, 249, 0.9);
+    color: #475569;
+  }
+
+  :root:not(.dark) .table-premium tbody tr {
+    border-bottom-color: #E2E8F0;
+  }
+
+  :root:not(.dark) .table-premium tbody tr:hover {
+    background: rgba(241, 245, 249, 0.5);
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
+  }
+
+  .badge-open {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.2);
+  }
+
+  .badge-pending {
+    background: rgba(139, 92, 246, 0.12);
+    color: #a78bfa;
+    box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.2);
+  }
+
+  .badge-closed {
+    background: rgba(34, 197, 94, 0.12);
+    color: #22c55e;
+    box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.2);
+  }
+
+  /* Priority Badge */
+  .priority-urgent {
+    @apply text-red-400;
+  }
+
+  .priority-high {
+    @apply text-orange-400;
+  }
+
+  .priority-medium {
+    @apply text-yellow-400;
+  }
+
+  .priority-low {
+    @apply text-emerald-400;
+  }
+
+  /* Floating Orbs Background */
+  .bg-orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  .bg-orb-1 {
+    width: 400px;
+    height: 400px;
+    background: rgba(6, 182, 212, 0.08);
+    top: -100px;
+    right: -100px;
+    animation: float 8s ease-in-out infinite;
+  }
+
+  .bg-orb-2 {
+    width: 350px;
+    height: 350px;
+    background: rgba(139, 92, 246, 0.06);
+    bottom: -100px;
+    left: -100px;
+    animation: float 10s ease-in-out infinite reverse;
+  }
+
+  /* Page transition */
+  .page-enter {
+    animation: fadeInUp 0.4s ease-out;
+  }
+}
+
+/* ==============================
+   Utility Layer
+   ============================== */
+
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-warm {
+    background: linear-gradient(135deg, #f59e0b, #ef4444);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .border-gradient {
+    border-image: linear-gradient(135deg, rgba(6, 182, 212, 0.3), rgba(139, 92, 246, 0.3)) 1;
+  }
+
+  .hover-lift {
+    @apply transition-all duration-300;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+  }
+}
