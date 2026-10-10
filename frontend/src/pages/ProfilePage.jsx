@@ -1,5 +1,5 @@
 import { useAuth } from "../context/AuthContext";
-import { FaUserCircle, FaEnvelope, FaIdBadge, FaBuilding, FaCalendarAlt } from "react-icons/fa";
+import { FaEnvelope, FaIdBadge, FaBuilding, FaCalendarAlt } from "react-icons/fa";
 
 const ProfilePage = () => {
   const { user } = useAuth();

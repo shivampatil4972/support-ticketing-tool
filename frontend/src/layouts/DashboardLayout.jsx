@@ -2,19 +2,24 @@ import { useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { FaMoon, FaSun, FaSignOutAlt, FaChartPie, FaTicketAlt, FaUsers, FaBuilding, FaPlus, FaBars, FaTimes, FaUserCircle } from "react-icons/fa";
+import { FaMoon, FaSun, FaSignOutAlt, FaChartPie, FaChartLine, FaInbox, FaTicketAlt, FaUsers, FaBuilding, FaPlus, FaBars, FaTimes, FaUserCircle } from "react-icons/fa";
+import NotificationBell from "../components/NotificationBell";
 
+// `end` keeps "/tickets" from also lighting up on "/tickets/new" or "/tickets/5"
 const navItems = {
   client: [
     { to: "/dashboard", label: "Dashboard", icon: <FaChartPie /> },
+    { to: "/tickets", label: "My Tickets", icon: <FaTicketAlt />, end: true },
     { to: "/tickets/new", label: "Create Ticket", icon: <FaPlus /> },
   ],
   agent: [
     { to: "/tickets/assigned", label: "Assigned Tickets", icon: <FaTicketAlt /> },
-    { to: "/tickets/unassigned", label: "Unassigned Queue", icon: <FaTicketAlt /> },
+    { to: "/tickets/unassigned", label: "Unassigned Queue", icon: <FaInbox /> },
   ],
   admin: [
     { to: "/dashboard", label: "Overview", icon: <FaChartPie /> },
+    { to: "/tickets", label: "All Tickets", icon: <FaTicketAlt />, end: true },
+    { to: "/admin/performance", label: "Performance", icon: <FaChartLine /> },
     { to: "/admin/users", label: "Manage Users", icon: <FaUsers /> },
     { to: "/admin/clients", label: "Manage Clients", icon: <FaBuilding /> },
   ],
@@ -70,6 +75,7 @@ const DashboardLayout = () => {
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.end}
               onClick={() => setIsSidebarOpen(false)}
               className={({ isActive }) =>
                 `sidebar-link ${isActive ? "active" : ""}`
@@ -110,6 +116,8 @@ const DashboardLayout = () => {
               >
                 {darkMode ? <FaSun className="text-yellow-400" /> : <FaMoon />}
               </button>
+
+              <NotificationBell />
 
               {/* Profile Link */}
               <button

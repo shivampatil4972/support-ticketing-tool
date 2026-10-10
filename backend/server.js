@@ -6,7 +6,7 @@ const app = require("./app");
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  // Server started successfully
+  console.log(`Support Ticketing API running on http://localhost:${PORT}`);
 });
 
 process.on("uncaughtException", (err) => {

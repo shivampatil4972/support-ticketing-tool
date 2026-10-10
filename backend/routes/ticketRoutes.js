@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const upload = require("../middlewares/upload");
+const { attachmentUpload } = require("../middlewares/upload");
 
 const {
   create,
@@ -13,7 +13,9 @@ const {
   reply,
   internalNote,
   status,
+  reopen,
   assign,
+  claim,
   remove,
   agentDashboard,
   clientDashboard,
@@ -28,7 +30,13 @@ const {
   statusValidation,
 } = require("../validations/auth");
 
-const { validateRequest } = require("../middlewares/validate");
+const {
+  validateRequest,
+  requireNumericId,
+} = require("../middlewares/validate");
+
+router.param("id", requireNumericId);
+router.param("commentId", requireNumericId);
 
 // =============================
 // Create Ticket
@@ -37,7 +45,7 @@ router.post(
   "/",
   authenticate,
   authorize("client"),
-  upload.single("attachment"),
+  attachmentUpload,
   ticketValidation,
   validateRequest,
   create,
@@ -100,7 +108,7 @@ router.post(
   "/:id/reply",
   authenticate,
   authorize("client", "agent", "admin"),
-  upload.single("attachment"),
+  attachmentUpload,
   commentValidation,
   validateRequest,
   reply,
@@ -113,7 +121,7 @@ router.post(
   "/:id/internal-note",
   authenticate,
   authorize("agent", "admin"),
-  upload.single("attachment"),
+  attachmentUpload,
   commentValidation,
   validateRequest,
   internalNote,
@@ -141,6 +149,21 @@ router.patch(
   assignValidation,
   validateRequest,
   assign,
+);
+
+// =============================
+// Claim Ticket (agent takes an unassigned ticket)
+// =============================
+router.post("/:id/claim", authenticate, authorize("agent"), claim);
+
+// =============================
+// Reopen Ticket
+// =============================
+router.post(
+  "/:id/reopen",
+  authenticate,
+  authorize("client", "agent", "admin"),
+  reopen,
 );
 
 // =============================

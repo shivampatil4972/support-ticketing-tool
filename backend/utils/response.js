@@ -1,3 +1,5 @@
+const { discardUpload } = require("../middlewares/upload");
+
 const sendResponse = (res, statusCode, success, data, message, error = null) => {
   const payload = {
     success,
@@ -16,6 +18,9 @@ const handle = (fn, fallbackMessage) => async (req, res) => {
   try {
     return await fn(req, res);
   } catch (error) {
+    // A failed request must not leave its uploaded file behind
+    await discardUpload(req);
+
     if (res.headersSent) return;
 
     if (error.statusCode) {

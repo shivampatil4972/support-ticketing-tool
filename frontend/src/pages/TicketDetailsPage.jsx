@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Loader from "../components/Loader";
 import StatusBadge from "../components/StatusBadge";
 import Button from "../components/Button";
@@ -7,7 +7,31 @@ import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { openAttachment, ticketAttachmentPath, commentAttachmentPath } from "../services/attachments";
 import toast from 'react-hot-toast';
-import { FaPaperclip, FaDownload, FaLock, FaReply, FaArrowLeft, FaUserCircle, FaBuilding } from "react-icons/fa";
+import { FaPaperclip, FaDownload, FaLock, FaReply, FaArrowLeft, FaUserCircle, FaBuilding, FaHistory } from "react-icons/fa";
+
+// One-line description of an audit event for the activity thread
+const describeEvent = (event) => {
+  const who = event.userName || "Someone";
+
+  switch (event.type) {
+    case "created":
+      return `${who} created the ticket`;
+    case "status_changed":
+      return `${who} changed the status from ${event.from_value} to ${event.to_value}`;
+    case "assigned":
+      return event.from_value
+        ? `${who} reassigned the ticket from ${event.from_value} to ${event.to_value}`
+        : `${who} assigned the ticket to ${event.to_value}`;
+    case "unassigned":
+      return `${who} unassigned the ticket from ${event.from_value || "its agent"}`;
+    case "claimed":
+      return `${who} claimed the ticket`;
+    case "reopened":
+      return `${who} reopened the ticket`;
+    default:
+      return `${who} updated the ticket`;
+  }
+};
 
 const TicketDetailsPage = () => {
   const { id } = useParams();
@@ -16,6 +40,7 @@ const TicketDetailsPage = () => {
 
   const [ticket, setTicket] = useState(null);
   const [comments, setComments] = useState([]);
+  const [events, setEvents] = useState([]);
   const [message, setMessage] = useState("");
   const [internalMessage, setInternalMessage] = useState("");
   const [status, setStatus] = useState("");
@@ -44,6 +69,7 @@ const TicketDetailsPage = () => {
       const ticketData = response.data.data.ticket;
       setTicket(ticketData);
       setComments(response.data.data.comments || []);
+      setEvents(response.data.data.events || []);
       setStatus(ticketData.status || "open");
       setSelectedAgent(ticketData.assigned_agent_id || "");
     } catch (error) {
@@ -63,15 +89,17 @@ const TicketDetailsPage = () => {
       const users = response.data.data || [];
       const agentUsers = users.filter((item) => item.role === "agent" && item.is_active === 1);
       setAgents(agentUsers);
-    } catch (error) {
+    } catch {
       setAgentsError("Failed to load agents.");
     }
   };
 
+  // Reload only when the ticket or the signed-in user changes
   useEffect(() => {
     if (!user) return;
     loadTicket();
     loadAgents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user]);
 
   const handleStatusChange = async (e) => {
@@ -83,21 +111,49 @@ const TicketDetailsPage = () => {
       toast.success("Ticket status updated");
       await loadTicket();
     } catch (error) {
-      toast.error("Failed to update ticket status.");
+      toast.error(error.response?.data?.message || "Failed to update ticket status.");
     } finally {
       setActionLoading(false);
     }
   };
 
+  // An empty selection sends null, which returns the ticket to the queue
   const handleAssign = async () => {
-    if (!selectedAgent) return toast.error("Please select an agent.");
     try {
       setActionLoading(true);
-      await api.patch(`/tickets/${id}/assign`, { assigned_agent_id: selectedAgent });
-      toast.success("Ticket assigned successfully");
+      await api.patch(`/tickets/${id}/assign`, { assigned_agent_id: selectedAgent || null });
+      toast.success(selectedAgent ? "Ticket assigned successfully" : "Ticket unassigned");
       await loadTicket();
     } catch (error) {
-      toast.error("Failed to assign ticket.");
+      toast.error(error.response?.data?.message || "Failed to assign ticket.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleClaim = async () => {
+    try {
+      setActionLoading(true);
+      await api.post(`/tickets/${id}/claim`);
+      toast.success("Ticket claimed. It is now assigned to you.");
+      await loadTicket();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to claim ticket.");
+      // Someone else may have claimed it first; show the current state
+      await loadTicket();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReopen = async () => {
+    try {
+      setActionLoading(true);
+      await api.post(`/tickets/${id}/reopen`);
+      toast.success("Ticket reopened");
+      await loadTicket();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to reopen ticket.");
     } finally {
       setActionLoading(false);
     }
@@ -111,7 +167,7 @@ const TicketDetailsPage = () => {
       toast.success("Ticket deleted");
       navigate("/dashboard");
     } catch (error) {
-      toast.error("Failed to delete ticket.");
+      toast.error(error.response?.data?.message || "Failed to delete ticket.");
     } finally {
       setActionLoading(false);
     }
@@ -162,6 +218,25 @@ const TicketDetailsPage = () => {
   }
 
   const attachmentPath = ticket.attachment_path ? ticketAttachmentPath(ticket.id) : null;
+
+  const isClient = user?.role === "client";
+  const isStaff = user?.role === "agent" || user?.role === "admin";
+
+  // Agents may only change the status of tickets assigned to them
+  const canChangeStatus =
+    user?.role === "admin" ||
+    (user?.role === "agent" && ticket.assigned_agent_id === user.id);
+  const canClaim = user?.role === "agent" && !ticket.assigned_agent_id;
+  const assignmentChanged = String(selectedAgent || "") !== String(ticket.assigned_agent_id || "");
+
+  // Clients must reopen a closed ticket before replying
+  const canReply = !(isClient && ticket.status === "closed");
+
+  // Replies and audit events share one chronological thread
+  const thread = [
+    ...comments.map((comment) => ({ kind: "comment", key: `c${comment.id}`, at: comment.created_at, item: comment })),
+    ...events.map((event) => ({ kind: "event", key: `e${event.id}`, at: event.created_at, item: event })),
+  ].sort((a, b) => new Date(a.at) - new Date(b.at));
 
   // File picker shared by the reply and internal note forms
   const renderFilePicker = (file, setFile) => (
@@ -259,10 +334,42 @@ const TicketDetailsPage = () => {
           </div>
         </div>
 
+        {/* Closed ticket: clients can reopen for a limited time */}
+        {isClient && ticket.status === "closed" && (
+          <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+              {ticket.can_reopen
+                ? "This ticket is closed. If the problem is back, you can reopen it."
+                : "This ticket is closed and can no longer be reopened. Please create a new ticket."}
+            </p>
+            {ticket.can_reopen ? (
+              <Button onClick={handleReopen} disabled={actionLoading} className="px-4 py-2 whitespace-nowrap">
+                Reopen Ticket
+              </Button>
+            ) : (
+              <Button onClick={() => navigate("/tickets/new")} className="px-4 py-2 whitespace-nowrap">
+                New Ticket
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Unassigned ticket: an agent can take it */}
+        {canClaim && (
+          <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+              Nobody is working on this ticket yet. Claim it to assign it to yourself.
+            </p>
+            <Button onClick={handleClaim} disabled={actionLoading} className="px-4 py-2 whitespace-nowrap">
+              Claim Ticket
+            </Button>
+          </div>
+        )}
+
         {/* Action Controls */}
-        {(user?.role === "agent" || user?.role === "admin") && (
+        {canChangeStatus && (
           <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            
+
             {/* Status Change */}
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -300,7 +407,7 @@ const TicketDetailsPage = () => {
                         disabled={actionLoading}
                         className="input-premium appearance-none pr-10 w-full"
                       >
-                        <option value="">Select Agent</option>
+                        <option value="">Unassigned</option>
                         {agents.map((agent) => (
                           <option key={agent.id} value={agent.id}>
                             {agent.name}
@@ -311,10 +418,13 @@ const TicketDetailsPage = () => {
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       </div>
                     </div>
-                    <Button onClick={handleAssign} disabled={actionLoading || !selectedAgent} className="px-4 py-2">
-                      Assign
+                    <Button onClick={handleAssign} disabled={actionLoading || !assignmentChanged} className="px-4 py-2">
+                      Save
                     </Button>
                   </div>
+                  {agentsError && (
+                    <p className="mt-2 text-xs font-medium text-red-500">{agentsError}</p>
+                  )}
                 </div>
 
                 <div className="flex items-end justify-end">
@@ -358,16 +468,28 @@ const TicketDetailsPage = () => {
         </div>
 
         <div className="p-6 space-y-6">
-          {comments.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-4">
-                <FaReply className="w-6 h-6 text-slate-400" />
-              </div>
-              <p className="text-slate-500 font-medium">No replies yet. Be the first to respond.</p>
-            </div>
-          ) : (
-            comments.map((comment) => (
-              <div key={comment.id} className={`flex gap-4 ${comment.is_internal ? 'opacity-90' : ''}`}>
+          {thread.map(({ kind, key, item }) => {
+            if (kind === "event") {
+              return (
+                <div key={key} className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span>
+                  <FaHistory className="w-3 h-3 flex-shrink-0" />
+                  <span className="font-medium text-center">
+                    {describeEvent(item)}
+                    <span className="text-slate-400 dark:text-slate-500">
+                      {" · "}
+                      {new Date(item.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                    </span>
+                  </span>
+                  <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span>
+                </div>
+              );
+            }
+
+            const comment = item;
+
+            return (
+              <div key={key} className={`flex gap-4 ${comment.is_internal ? 'opacity-90' : ''}`}>
                 <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-white shadow-md overflow-hidden bg-slate-100 dark:bg-slate-800`}>
                   <img src={`https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(comment.name)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`} alt={comment.name} className="w-full h-full object-cover" />
                 </div>
@@ -383,7 +505,8 @@ const TicketDetailsPage = () => {
                       <span className="text-xs font-medium text-slate-500 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-full capitalize">
                         {comment.role}
                       </span>
-                      {comment.is_internal && (
+                      {/* is_internal is 0 or 1; a bare 0 would be rendered as text */}
+                      {Boolean(comment.is_internal) && (
                         <span className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
                           <FaLock className="w-3 h-3" /> Internal Note
                         </span>
@@ -407,7 +530,16 @@ const TicketDetailsPage = () => {
                   )}
                 </div>
               </div>
-            ))
+            );
+          })}
+
+          {comments.length === 0 && (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-4">
+                <FaReply className="w-6 h-6 text-slate-400" />
+              </div>
+              <p className="text-slate-500 font-medium">No replies yet. Be the first to respond.</p>
+            </div>
           )}
         </div>
 
@@ -415,7 +547,7 @@ const TicketDetailsPage = () => {
         <div className="bg-slate-50 dark:bg-[#050A18] border-t border-slate-200 dark:border-slate-800 p-6 space-y-6">
           
           {/* Internal Note (Agents/Admins) */}
-          {(user?.role === "agent" || user?.role === "admin") && (
+          {isStaff && (
             <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 shadow-inner">
               <div className="flex items-center gap-2 mb-3 text-amber-600 dark:text-amber-500 font-bold">
                 <FaLock /> Add Internal Note
@@ -439,12 +571,13 @@ const TicketDetailsPage = () => {
           )}
 
           {/* Public Reply */}
+          {canReply && (
           <div>
             <h4 className="font-bold text-slate-900 dark:text-white mb-3">Send Reply</h4>
             <form onSubmit={handleReply}>
               <textarea
                 className="input-premium min-h-[120px] mb-3"
-                placeholder="Type your response to the client..."
+                placeholder={isClient ? "Type your reply to the support team..." : "Type your response to the client..."}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
               />
@@ -456,6 +589,13 @@ const TicketDetailsPage = () => {
               </div>
             </form>
           </div>
+          )}
+
+          {!canReply && (
+            <p className="text-sm font-medium text-slate-500 text-center">
+              This ticket is closed. Reopen it to send a reply.
+            </p>
+          )}
         </div>
       </div>
     </div>

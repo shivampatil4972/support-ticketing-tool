@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   FaTicketAlt,
   FaCheckCircle,
@@ -10,7 +10,6 @@ import {
   FaUserTie,
   FaTasks,
   FaPlus,
-  FaChartPie,
 } from "react-icons/fa";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import toast from 'react-hot-toast';
@@ -81,8 +80,10 @@ const DashboardPage = () => {
     }
   };
 
+  // Load once on mount; later loads come from search
   useEffect(() => {
     loadTickets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Compute Chart Data
@@ -195,8 +196,8 @@ const DashboardPage = () => {
               {loading ? renderSkeletonCards(4) : (
                 <>
                   <DashboardCard title="Total Tickets" value={stats.totalTickets} subtitle="All Time" icon={<FaTicketAlt />} color="bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-800 dark:to-slate-950" />
-                  <DashboardCard title="Open" value={stats.openTickets} subtitle="Needs Assignment" icon={<FaCheckCircle />} color="bg-gradient-to-br from-emerald-500 to-teal-600 shadow-glow-success" />
-                  <DashboardCard title="Pending" value={stats.pendingTickets} subtitle="In Progress" icon={<FaClock />} color="bg-gradient-to-br from-amber-400 to-orange-500" />
+                  <DashboardCard title="Open" value={stats.openTickets} subtitle="Awaiting Support" icon={<FaCheckCircle />} color="bg-gradient-to-br from-emerald-500 to-teal-600 shadow-glow-success" />
+                  <DashboardCard title="Pending" value={stats.pendingTickets} subtitle="Awaiting Client" icon={<FaClock />} color="bg-gradient-to-br from-amber-400 to-orange-500" />
                   <DashboardCard title="Closed" value={stats.closedTickets} subtitle="Resolved" icon={<FaTimesCircle />} color="bg-gradient-to-br from-rose-500 to-red-600" />
                 </>
               )}
@@ -240,7 +241,7 @@ const DashboardPage = () => {
               <>
                 <DashboardCard title="Total" value={clientStats.totalTickets} subtitle="Tickets Created" icon={<FaTicketAlt />} color="bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-800 dark:to-slate-950" />
                 <DashboardCard title="Open" value={clientStats.openTickets} subtitle="Awaiting Agent" icon={<FaCheckCircle />} color="bg-gradient-to-br from-emerald-500 to-teal-600 shadow-glow-success" />
-                <DashboardCard title="Pending" value={clientStats.pendingTickets} subtitle="In Progress" icon={<FaClock />} color="bg-gradient-to-br from-amber-400 to-orange-500" />
+                <DashboardCard title="Pending" value={clientStats.pendingTickets} subtitle="Awaiting Your Reply" icon={<FaClock />} color="bg-gradient-to-br from-amber-400 to-orange-500" />
                 <DashboardCard title="Closed" value={clientStats.closedTickets} subtitle="Resolved" icon={<FaTimesCircle />} color="bg-gradient-to-br from-rose-500 to-red-600" />
               </>
             )}

@@ -19,13 +19,23 @@ const {
   getComments,
   getCommentAttachment,
   updateTicketStatus,
+  reopenTicket,
   assignTicket,
+  claimTicket,
   deleteTicket,
   getAssignedTickets,
   getUnassignedTickets,
   getAgentDashboardStats,
   getClientDashboardStats,
 } = require("../services/ticketService");
+
+const { getEvents } = require("../services/eventService");
+
+const {
+  notifyUsers,
+  getClientRecipients,
+  getAdminRecipients,
+} = require("../services/notificationService");
 
 // Notification emails must never fail or delay the request
 const notify = (email) => {
@@ -60,10 +70,18 @@ const create = handle(async (req, res) => {
     description: req.body.description,
     priority: req.body.priority,
     clientId: req.user.client_id,
+    createdBy: req.user.id,
     attachmentPath: req.file ? req.file.filename : null,
   });
 
   notify(ticketCreatedEmail(req.user.email, ticket));
+
+  // Admins assign tickets, so they need to know a new one is waiting
+  await notifyUsers(await getAdminRecipients(), {
+    ticketId: ticket.id,
+    type: "ticket_created",
+    message: `New ${ticket.priority} priority ticket: ${ticket.title}`,
+  });
 
   return sendResponse(res, 201, true, ticket, "Ticket created successfully");
 }, "Failed to create ticket");
@@ -72,12 +90,7 @@ const create = handle(async (req, res) => {
 // Get All Tickets
 // ==============================
 const list = handle(async (req, res) => {
-  const result = await getTicketsForUser(
-    req.user,
-    req.query.page,
-    req.query.limit,
-    req.query.search || "",
-  );
+  const result = await getTicketsForUser(req.user, req.query);
 
   return sendResponse(res, 200, true, result, "Tickets retrieved successfully");
 }, "Failed to retrieve tickets");
@@ -86,12 +99,7 @@ const list = handle(async (req, res) => {
 // Assigned Tickets
 // ==============================
 const assignedTickets = handle(async (req, res) => {
-  const result = await getAssignedTickets(
-    req.user,
-    req.query.page,
-    req.query.limit,
-    req.query.search || "",
-  );
+  const result = await getAssignedTickets(req.user, req.query);
 
   return sendResponse(
     res,
@@ -106,11 +114,7 @@ const assignedTickets = handle(async (req, res) => {
 // Unassigned Tickets
 // ==============================
 const unassignedTickets = handle(async (req, res) => {
-  const result = await getUnassignedTickets(
-    req.query.page,
-    req.query.limit,
-    req.query.search || "",
-  );
+  const result = await getUnassignedTickets(req.query);
 
   return sendResponse(
     res,
@@ -129,6 +133,8 @@ const detail = handle(async (req, res) => {
 
   const comments = await getComments(req.params.id, req.user);
 
+  const events = await getEvents(req.params.id);
+
   return sendResponse(
     res,
     200,
@@ -136,6 +142,7 @@ const detail = handle(async (req, res) => {
     {
       ticket,
       comments,
+      events,
     },
     "Ticket retrieved successfully",
   );
@@ -175,20 +182,34 @@ const commentAttachment = handle(async (req, res) => {
 // ==============================
 const reply = handle(async (req, res) => {
   // Throws unless the user may view this ticket
-  await getTicketById(req.params.id, req.user);
+  const ticket = await getTicketById(req.params.id, req.user);
 
   const comment = await addComment({
-    ticketId: req.params.id,
-    userId: req.user.id,
+    ticket,
+    user: req.user,
     message: req.body.message.trim(),
     isInternal: false,
     attachmentPath: req.file ? req.file.filename : null,
   });
 
-  if (req.user.role === "client" && comment.agentEmail) {
-    notify(clientReplyEmail(comment));
-  } else if (req.user.role === "agent" && comment.clientEmail) {
-    notify(agentReplyEmail(comment));
+  if (req.user.role === "client") {
+    if (comment.agentEmail) notify(clientReplyEmail(comment));
+
+    await notifyUsers([ticket.assigned_agent_id], {
+      ticketId: ticket.id,
+      type: "reply",
+      message: `${req.user.name} replied on: ${ticket.title}`,
+    });
+  } else {
+    if (req.user.role === "agent" && comment.clientEmail) {
+      notify(agentReplyEmail(comment));
+    }
+
+    await notifyUsers(await getClientRecipients(ticket), {
+      ticketId: ticket.id,
+      type: "reply",
+      message: `Support replied on your ticket: ${ticket.title}`,
+    });
   }
 
   return sendResponse(res, 201, true, comment, "Reply added successfully");
@@ -199,15 +220,26 @@ const reply = handle(async (req, res) => {
 // ==============================
 const internalNote = handle(async (req, res) => {
   // Throws unless the user may view this ticket
-  await getTicketById(req.params.id, req.user);
+  const ticket = await getTicketById(req.params.id, req.user);
 
   const comment = await addComment({
-    ticketId: req.params.id,
-    userId: req.user.id,
+    ticket,
+    user: req.user,
     message: req.body.message.trim(),
     isInternal: true,
     attachmentPath: req.file ? req.file.filename : null,
   });
+
+  // Notes are staff-only: tell the assigned agent, never the client
+  await notifyUsers(
+    [ticket.assigned_agent_id],
+    {
+      ticketId: ticket.id,
+      type: "internal_note",
+      message: `${req.user.name} added an internal note on: ${ticket.title}`,
+    },
+    req.user.id,
+  );
 
   return sendResponse(
     res,
@@ -228,22 +260,87 @@ const status = handle(async (req, res) => {
     req.user,
   );
 
+  if (result.changed) {
+    await notifyUsers(await getClientRecipients(result), {
+      ticketId: result.id,
+      type: "status_changed",
+      message: `Your ticket "${result.title}" is now ${result.status}`,
+    });
+  }
+
   return sendResponse(res, 200, true, result, "Status updated successfully");
 }, "Failed to update status");
 
 // ==============================
-// Assign Ticket
+// Reopen Ticket
 // ==============================
-const assign = handle(async (req, res) => {
-  const result = await assignTicket(
-    req.params.id,
-    req.body.assigned_agent_id,
+const reopen = handle(async (req, res) => {
+  const result = await reopenTicket(req.params.id, req.user);
+
+  const recipients =
+    req.user.role === "client"
+      ? [result.assigned_agent_id]
+      : await getClientRecipients(result);
+
+  await notifyUsers(
+    recipients,
+    {
+      ticketId: result.id,
+      type: "reopened",
+      message: `Ticket reopened: ${result.title}`,
+    },
+    req.user.id,
   );
 
-  notify(ticketAssignedEmail(result));
+  return sendResponse(res, 200, true, result, "Ticket reopened successfully");
+}, "Failed to reopen ticket");
 
-  return sendResponse(res, 200, true, result, "Ticket assigned successfully");
+// ==============================
+// Assign, Reassign or Unassign Ticket
+// ==============================
+const assign = handle(async (req, res) => {
+  const agentId = req.body.assigned_agent_id ?? null;
+
+  const result = await assignTicket(req.params.id, agentId, req.user);
+
+  if (result.changed && result.assigned_agent_id) {
+    notify(ticketAssignedEmail(result));
+
+    await notifyUsers([result.assigned_agent_id], {
+      ticketId: result.id,
+      type: "assigned",
+      message: `You were assigned: ${result.ticketTitle}`,
+    });
+  }
+
+  // The previous owner should know the ticket has left their queue
+  if (result.changed && result.previousAgentId) {
+    await notifyUsers([result.previousAgentId], {
+      ticketId: null,
+      type: "unassigned",
+      message: `You are no longer assigned to: ${result.ticketTitle}`,
+    });
+  }
+
+  return sendResponse(
+    res,
+    200,
+    true,
+    result,
+    result.assigned_agent_id
+      ? "Ticket assigned successfully"
+      : "Ticket unassigned successfully",
+  );
 }, "Failed to assign ticket");
+
+// ==============================
+// Claim Ticket
+// ==============================
+const claim = handle(async (req, res) => {
+  const result = await claimTicket(req.params.id, req.user);
+
+  return sendResponse(res, 200, true, result, "Ticket claimed successfully");
+}, "Failed to claim ticket");
 
 // ==============================
 // Soft Delete Ticket
@@ -298,7 +395,9 @@ module.exports = {
   reply,
   internalNote,
   status,
+  reopen,
   assign,
+  claim,
   remove,
   agentDashboard,
   clientDashboard,

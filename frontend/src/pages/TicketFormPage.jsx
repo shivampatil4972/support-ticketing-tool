@@ -123,6 +123,7 @@ const TicketFormPage = () => {
                   <input
                     type="file"
                     className="hidden"
+                    accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
                     onChange={(e) => setAttachment(e.target.files[0])}
                   />
                 </label>

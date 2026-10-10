@@ -12,6 +12,8 @@ import TicketFormPage from "../pages/TicketFormPage";
 import TicketDetailsPage from "../pages/TicketDetailsPage";
 import AdminUsersPage from "../pages/AdminUsersPage";
 import AdminClientsPage from "../pages/AdminClientsPage";
+import AdminPerformancePage from "../pages/AdminPerformancePage";
+import TicketsPage from "../pages/TicketsPage";
 import ProfilePage from "../pages/ProfilePage";
 
 import Loader from "../components/Loader";
@@ -100,6 +102,20 @@ const AppRoutes = () => {
         <Route path="dashboard" element={<DashboardPage />} />
 
         {/* ==========================================
+            Full Ticket List
+            Client / Admin
+            ========================================== */}
+
+        <Route
+          path="tickets"
+          element={
+            <ProtectedRoute allowedRoles={["client", "admin"]}>
+              <TicketsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ==========================================
             Agent Routes
             ========================================== */}
 
@@ -157,6 +173,15 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
               <AdminUsersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="admin/performance"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminPerformancePage />
             </ProtectedRoute>
           }
         />

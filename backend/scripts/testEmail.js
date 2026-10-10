@@ -1,6 +1,10 @@
+// Sends a test email to EMAIL_USER to confirm the SMTP settings in .env.
+//
+//   npm run test:email
+
 require('dotenv').config();
 
-const { sendEmail } = require('./utils/email');
+const { sendEmail } = require('../utils/email');
 
 (async () => {
   await sendEmail({

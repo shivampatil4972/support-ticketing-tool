@@ -78,6 +78,10 @@ const updateUser = async (id, fields) => {
     "client_id",
   ];
 
+  if (typeof fields.email === "string") {
+    fields = { ...fields, email: fields.email.trim().toLowerCase() };
+  }
+
   const entries = Object.entries(fields).filter(
     ([key, value]) =>
       allowedFields.includes(key) && value !== undefined,
@@ -289,7 +293,82 @@ const getDashboardStats = async () => {
   };
 };
 
+// ==============================
+// AGENT PERFORMANCE
+// ==============================
+
+// Per-ticket metric columns, shared by the per-agent and overall queries
+const METRIC_COLUMNS = `
+  COUNT(t.id) AS totalTickets,
+  COUNT(CASE WHEN t.status <> 'closed' THEN 1 END) AS activeTickets,
+  COUNT(CASE WHEN t.status = 'closed' THEN 1 END) AS closedTickets,
+  COUNT(CASE WHEN t.status <> 'closed' AND t.sla_due_date < UTC_TIMESTAMP() THEN 1 END) AS overdueTickets,
+  AVG(TIMESTAMPDIFF(MINUTE, t.created_at, t.first_response_at)) AS avgFirstResponseMinutes,
+  AVG(CASE WHEN t.status = 'closed' THEN TIMESTAMPDIFF(MINUTE, t.created_at, t.closed_at) END) AS avgResolutionMinutes,
+  COUNT(CASE WHEN t.status = 'closed' AND t.closed_at <= t.sla_due_date THEN 1 END) AS closedWithinSla
+`;
+
+// MySQL returns AVG as a decimal string, and NULL when there is no data
+const toMetrics = (row) => ({
+  totalTickets: row.totalTickets,
+  activeTickets: row.activeTickets,
+  closedTickets: row.closedTickets,
+  overdueTickets: row.overdueTickets,
+  avgFirstResponseMinutes:
+    row.avgFirstResponseMinutes === null
+      ? null
+      : Math.round(Number(row.avgFirstResponseMinutes)),
+  avgResolutionMinutes:
+    row.avgResolutionMinutes === null
+      ? null
+      : Math.round(Number(row.avgResolutionMinutes)),
+  // Share of closed tickets that were closed before their SLA due date
+  slaHitRate: row.closedTickets
+    ? Math.round((row.closedWithinSla / row.closedTickets) * 100)
+    : null,
+});
+
+const getAgentPerformance = async () => {
+  const [agentRows] = await pool.execute(`
+    SELECT
+      u.id,
+      u.name,
+      u.email,
+      ${METRIC_COLUMNS}
+    FROM users u
+    LEFT JOIN tickets t
+      ON t.assigned_agent_id = u.id
+      AND t.is_deleted = 0
+    WHERE u.role = 'agent'
+      AND u.is_active = 1
+    GROUP BY u.id, u.name, u.email
+    ORDER BY u.name ASC
+  `);
+
+  const [[overallRow]] = await pool.execute(`
+    SELECT
+      ${METRIC_COLUMNS},
+      COUNT(CASE WHEN t.assigned_agent_id IS NULL AND t.status <> 'closed' THEN 1 END) AS unassignedTickets
+    FROM tickets t
+    WHERE t.is_deleted = 0
+  `);
+
+  return {
+    overall: {
+      ...toMetrics(overallRow),
+      unassignedTickets: overallRow.unassignedTickets,
+    },
+    agents: agentRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      ...toMetrics(row),
+    })),
+  };
+};
+
 module.exports = {
+  getAgentPerformance,
   getAllUsers,
   createUser,
   updateUser,

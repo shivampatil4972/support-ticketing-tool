@@ -1,3 +1,6 @@
+-- Baseline schema. Later changes live in backend/migrations and are
+-- applied with `npm run migrate`, so run that after importing this file.
+
 CREATE DATABASE IF NOT EXISTS support_ticketing;
 
 USE support_ticketing;

@@ -25,7 +25,7 @@ const authenticate = async (req, res, next) => {
 
     req.user = rows[0];
     next();
-  } catch (error) {
+  } catch {
     return sendResponse(res, 401, false, null, 'Invalid or expired token');
   }
 };

@@ -10,6 +10,7 @@ const {
   updateClient,
   deleteClient,
   getDashboardStats,
+  getAgentPerformance,
 } = require("../services/adminService");
 
 // ==========================
@@ -100,7 +101,20 @@ const dashboard = handle(async (req, res) => {
   );
 }, "Failed to fetch dashboard data");
 
+const performance = handle(async (req, res) => {
+  const result = await getAgentPerformance();
+
+  return sendResponse(
+    res,
+    200,
+    true,
+    result,
+    "Performance data fetched successfully",
+  );
+}, "Failed to fetch performance data");
+
 module.exports = {
+  performance,
   listUsers,
   createUserHandler,
   updateUserHandler,

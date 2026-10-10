@@ -6,7 +6,14 @@ process.env.JWT_SECRET = "test-secret";
 process.env.EMAIL_USER = "";
 process.env.EMAIL_PASS = "";
 
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const jwt = require("jsonwebtoken");
+
+// Uploads go to a throwaway directory, never the real backend/uploads
+const uploadDir = fs.mkdtempSync(path.join(os.tmpdir(), "ticketing-test-"));
+process.env.UPLOAD_DIR = uploadDir;
 
 const databasePath = require.resolve("../config/database");
 
@@ -66,18 +73,43 @@ const start = () =>
     });
   });
 
-const stop = () => new Promise((resolve) => server.close(resolve));
+const stop = () =>
+  new Promise((resolve) => {
+    fs.rmSync(uploadDir, { recursive: true, force: true });
+    server.closeAllConnections();
+    server.close(resolve);
+  });
 
-const request = async (method, path, { user, body } = {}) => {
+// `body` is sent as JSON; `form` (fields plus an optional file) as multipart
+const request = async (method, url, { user, body, form } = {}) => {
   const headers = {};
+  let payload;
 
   if (user) headers.Authorization = `Bearer ${tokenFor(user)}`;
-  if (body) headers["Content-Type"] = "application/json";
 
-  const response = await fetch(baseUrl + path, {
+  if (form) {
+    payload = new FormData();
+
+    for (const [key, value] of Object.entries(form.fields || {})) {
+      payload.append(key, value);
+    }
+
+    if (form.file) {
+      payload.append(
+        "attachment",
+        new Blob([form.file.content], { type: form.file.type }),
+        form.file.name,
+      );
+    }
+  } else if (body) {
+    headers["Content-Type"] = "application/json";
+    payload = JSON.stringify(body);
+  }
+
+  const response = await fetch(baseUrl + url, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: payload,
   });
 
   const text = await response.text();
@@ -92,4 +124,6 @@ const request = async (method, path, { user, body } = {}) => {
   return { status: response.status, json, text };
 };
 
-module.exports = { db, users, reset, start, stop, request };
+const storedUploads = () => fs.readdirSync(uploadDir);
+
+module.exports = { db, users, reset, start, stop, request, storedUploads };
